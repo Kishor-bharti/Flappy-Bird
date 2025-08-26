@@ -1,5 +1,5 @@
 # Flappy-Bird
 
-# Description:
+## Description:
 
 This is a Flappy Bird game development in Python using Pygame
