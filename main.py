@@ -13,17 +13,31 @@ GAME_SPRITES = {}
 GAME_SOUNDS = {}
 PLAYER = 'assets/sprites/flappy-chad.png'
 BACKGROUND = 'assets/sprites/background.png'
+BACKGROUND2 = 'assets/sprites/background2.jpg'
 PIPE = 'assets/sprites/pipe.png'
+HIGH_SCORE = 0  # Global high score variable
+current_background = 1  # 1 for background.png, 2 for background2.png
 
 def welcomeScreen():
     """
-    Shows welcome images on the screen
+    Shows welcome images on the screen with high score and title
     """
+    # Play intro sound when welcome screen appears
+    GAME_SOUNDS['helicopter'].play()
+    
     playerx = int(SCREENWIDTH/5)
     playery = int((SCREENHEIGHT - GAME_SPRITES['player'].get_height())/2)
     messagex = int((SCREENWIDTH - GAME_SPRITES['message'].get_width())/2)
     messagey = int(SCREENHEIGHT*0.13)
     basex = 0
+    
+    # Font for text rendering
+    font_large = pygame.font.Font(None, 36)
+    font_medium = pygame.font.Font(None, 24)
+    font_small = pygame.font.Font(None, 20)
+    
+    # Determine current background to display
+    current_bg = GAME_SPRITES['background1'] if current_background == 1 else GAME_SPRITES['background2']
     
     while True:
         for event in pygame.event.get():
@@ -38,19 +52,40 @@ def welcomeScreen():
         # Clear screen first
         SCREEN.fill((0, 0, 0))
         
-        # Draw everything every frame (moved outside the event loop)
-        SCREEN.blit(GAME_SPRITES['background'], (0, 0))    
+        # Draw everything every frame with current background
+        SCREEN.blit(current_bg, (0, 0))    
         SCREEN.blit(GAME_SPRITES['base'], (basex, GROUNDY))    
         SCREEN.blit(GAME_SPRITES['player'], (playerx, playery))    
         SCREEN.blit(GAME_SPRITES['message'], (messagex, messagey))    
+        
+        # Add title text "Flappy Bird Game by Kishor"
+        title_text = font_large.render("Flappy Bird", True, (255, 255, 255))
+        title_rect = title_text.get_rect(center=(SCREENWIDTH//2, 50))
+        SCREEN.blit(title_text, title_rect)
+        
+        author_text = font_medium.render("Game by Kishor", True, (255, 255, 255))
+        author_rect = author_text.get_rect(center=(SCREENWIDTH//2, 80))
+        SCREEN.blit(author_text, author_rect)
+        
+        # Add high score display (updated every time)
+        highscore_text = font_medium.render(f"High Score: {HIGH_SCORE}", True, (255, 215, 0))  # Gold color
+        highscore_rect = highscore_text.get_rect(center=(SCREENWIDTH//2, SCREENHEIGHT - 80))
+        SCREEN.blit(highscore_text, highscore_rect)
+        
+        # Instructions
+        instruction_text = font_small.render("Press SPACE or UP to start", True, (200, 200, 200))
+        instruction_rect = instruction_text.get_rect(center=(SCREENWIDTH//2, SCREENHEIGHT - 40))
+        SCREEN.blit(instruction_text, instruction_rect)
         
         pygame.display.update()
         FPSCLOCK.tick(FPS)
 
 def mainGame():
+    global HIGH_SCORE, current_background
     score = 0
+    last_background_switch = 0  # Track when we last switched backgrounds
     playerx = int(SCREENWIDTH/5)
-    playery = int(SCREENHEIGHT/2)  # Fixed: was using SCREENWIDTH instead of SCREENHEIGHT
+    playery = int(SCREENHEIGHT/2)
     basex = 0
 
     # Create 2 pipes for blitting on the screen
@@ -89,8 +124,12 @@ def mainGame():
                     playerFlapped = True
                     GAME_SOUNDS['wing'].play()
 
-        crashTest = isCollide(playerx, playery, upperPipes, lowerPipes) # This function will return true if the player is crashed
+        crashTest = isCollide(playerx, playery, upperPipes, lowerPipes)
         if crashTest:
+            # Update high score before returning
+            if score > HIGH_SCORE:
+                HIGH_SCORE = score
+                print(f"New High Score: {HIGH_SCORE}!")
             return     
 
         #check for score
@@ -101,6 +140,15 @@ def mainGame():
                 score +=1
                 print(f"Your score is {score}") 
                 GAME_SOUNDS['point'].play()
+                
+                # Check for background switch every 20 scores
+                if score > 0 and score % 20 == 0 and score != last_background_switch:
+                    # Switch background
+                    current_background = 2 if current_background == 1 else 1
+                    last_background_switch = score
+                    print(f"Background switched to background{current_background} at score {score}!")
+                    # Play helicopter sound when switching backgrounds
+                    GAME_SOUNDS['helicopter'].play()
 
         if playerVelY <playerMaxVelY and not playerFlapped:
             playerVelY += playerAccY
@@ -129,88 +177,99 @@ def mainGame():
         # Clear screen first
         SCREEN.fill((135, 206, 235))  # Sky blue color as fallback
         
-        # Lets blit our sprites now
-        SCREEN.blit(GAME_SPRITES['background'], (0, 0))
+        # Use current background
+        current_bg = GAME_SPRITES['background1'] if current_background == 1 else GAME_SPRITES['background2']
+        SCREEN.blit(current_bg, (0, 0))
         
-        # Draw pipes without debug borders
+        # Draw pipes
         for upperPipe, lowerPipe in zip(upperPipes, lowerPipes):
             SCREEN.blit(GAME_SPRITES['pipe'][0], (upperPipe['x'], upperPipe['y']))
             SCREEN.blit(GAME_SPRITES['pipe'][1], (lowerPipe['x'], lowerPipe['y']))
 
-        # Draw base without debug border
+        # Draw base
         SCREEN.blit(GAME_SPRITES['base'], (basex, GROUNDY))
         
-        # Draw player without debug border
+        # Draw player
         SCREEN.blit(GAME_SPRITES['player'], (playerx, playery))
         
-        # Add motion trail effect to make movement more visible
-        if hasattr(mainGame, 'player_trail'):
-            mainGame.player_trail.append((playerx + GAME_SPRITES['player'].get_width()//2, playery + GAME_SPRITES['player'].get_height()//2))
-            if len(mainGame.player_trail) > 5:  # Keep last 5 positions
-                mainGame.player_trail.pop(0)
-            
-            # Draw trail
-            for i, (trail_x, trail_y) in enumerate(mainGame.player_trail):
-                pygame.draw.circle(SCREEN, (255, 100, 100), (int(trail_x), int(trail_y)), 3-i)
-        else:
-            mainGame.player_trail = []
-        
-        # Debug: Print player position every 60 frames
-        if pygame.time.get_ticks() % 1000 < 50:  # Print roughly every second
-            print(f"Player at: ({playerx}, {playery}), Pipes at: {[p['x'] for p in upperPipes]}")
-        
-        # Score display - move to top right corner and make smaller
+        # Score display - top right corner
         myDigits = [int(x) for x in list(str(score))]
         width = 0
         for digit in myDigits:
             width += GAME_SPRITES['numbers'][digit].get_width()
         
-        # Position score in top right instead of center
-        Xoffset = SCREENWIDTH - width - 10  # 10 pixels from right edge
+        Xoffset = SCREENWIDTH - width - 10
 
         for digit in myDigits:
-            SCREEN.blit(GAME_SPRITES['numbers'][digit], (Xoffset, 10))  # 10 pixels from top
+            SCREEN.blit(GAME_SPRITES['numbers'][digit], (Xoffset, 10))
             Xoffset += GAME_SPRITES['numbers'][digit].get_width()
+            
         pygame.display.update()
         FPSCLOCK.tick(FPS)
 
-def isCollide(playerx, playery, upperPipes, lowerPipes):
-    # Adjust collision detection for transparent backgrounds
-    # Add some padding to make collision more forgiving
-    collision_padding = 5
+def pixelPerfectCollision(sprite1, pos1, sprite2, pos2):
+    """
+    Check for pixel-perfect collision between two sprites with alpha channels
+    """
+    # Get the overlapping rectangle
+    rect1 = pygame.Rect(pos1, sprite1.get_size())
+    rect2 = pygame.Rect(pos2, sprite2.get_size())
     
-    # Check ground and ceiling collision
-    if playery > GROUNDY - 25 or playery < 0:
+    if not rect1.colliderect(rect2):
+        return False
+    
+    # Get the overlapping area
+    overlap = rect1.clip(rect2)
+    
+    # Check pixels in the overlapping area
+    for x in range(overlap.width):
+        for y in range(overlap.height):
+            # Calculate positions in both sprites
+            pos1_x = overlap.x + x - rect1.x
+            pos1_y = overlap.y + y - rect1.y
+            pos2_x = overlap.x + x - rect2.x
+            pos2_y = overlap.y + y - rect2.y
+            
+            # Get alpha values at these positions
+            try:
+                alpha1 = sprite1.get_at((pos1_x, pos1_y))[3]  # Alpha channel
+                alpha2 = sprite2.get_at((pos2_x, pos2_y))[3]  # Alpha channel
+                
+                # If both pixels are not transparent, we have a collision
+                if alpha1 > 128 and alpha2 > 128:  # Threshold for "solid" pixels
+                    return True
+            except IndexError:
+                continue  # Skip if out of bounds
+    
+    return False
+
+def isCollide(playerx, playery, upperPipes, lowerPipes):
+    # Check ground collision - use the actual base sprite height
+    base_top = GROUNDY
+    if playery + GAME_SPRITES['player'].get_height() >= base_top or playery <= 0:
         GAME_SOUNDS['hit'].play()
         return True
     
-    # Get player boundaries with padding
-    player_left = playerx + collision_padding
-    player_right = playerx + GAME_SPRITES['player'].get_width() - collision_padding
-    player_top = playery + collision_padding
-    player_bottom = playery + GAME_SPRITES['player'].get_height() - collision_padding
+    player_sprite = GAME_SPRITES['player']
+    player_pos = (playerx, playery)
     
-    # Check upper pipe collision
+    # Check upper pipe collision with pixel-perfect detection
     for pipe in upperPipes:
-        pipe_left = pipe['x']
-        pipe_right = pipe['x'] + GAME_SPRITES['pipe'][0].get_width()
-        pipe_bottom = pipe['y'] + GAME_SPRITES['pipe'][0].get_height()
+        pipe_sprite = GAME_SPRITES['pipe'][0]  # Upper pipe (rotated)
+        pipe_pos = (pipe['x'], pipe['y'])
         
-        # Check if player overlaps with upper pipe
-        if (player_right > pipe_left and player_left < pipe_right and 
-            player_top < pipe_bottom):
+        if pixelPerfectCollision(player_sprite, player_pos, pipe_sprite, pipe_pos):
+            print(f"Pixel-perfect upper pipe collision detected!")
             GAME_SOUNDS['hit'].play()
             return True
 
-    # Check lower pipe collision  
+    # Check lower pipe collision with pixel-perfect detection
     for pipe in lowerPipes:
-        pipe_left = pipe['x']
-        pipe_right = pipe['x'] + GAME_SPRITES['pipe'][1].get_width()
-        pipe_top = pipe['y']
+        pipe_sprite = GAME_SPRITES['pipe'][1]  # Lower pipe (normal)
+        pipe_pos = (pipe['x'], pipe['y'])
         
-        # Check if player overlaps with lower pipe
-        if (player_right > pipe_left and player_left < pipe_right and 
-            player_bottom > pipe_top):
+        if pixelPerfectCollision(player_sprite, player_pos, pipe_sprite, pipe_pos):
+            print(f"Pixel-perfect lower pipe collision detected!")
             GAME_SOUNDS['hit'].play()
             return True
 
@@ -221,14 +280,12 @@ def getRandomPipe():
     Generate positions of two pipes(one bottom straight and one top rotated ) for blitting on the screen
     """
     pipeHeight = GAME_SPRITES['pipe'][0].get_height()
-    # Increase the gap between pipes for better gameplay
-    gap_size = 120  # Bigger gap between upper and lower pipes
+    gap_size = 120
     offset = SCREENHEIGHT/3
     
-    # Calculate pipe positions with proper gap
     y2 = offset + random.randrange(0, int(SCREENHEIGHT - GAME_SPRITES['base'].get_height() - 1.2 *offset))
     pipeX = SCREENWIDTH + 10
-    y1 = y2 - gap_size - pipeHeight  # Upper pipe position with gap
+    y1 = y2 - gap_size - pipeHeight
     
     pipe = [
         {'x': pipeX, 'y': y1}, #upper Pipe
@@ -238,31 +295,38 @@ def getRandomPipe():
 
 if __name__ == "__main__":
     # This will be the main point from where our game will start
-    pygame.init() # Initialize all pygame's modules
+    pygame.init()
     FPSCLOCK = pygame.time.Clock()
     pygame.display.set_caption('Flappy Bird by Kishor Bharti')
     
-    # Load and scale number sprites (scale them down from their original size)
+    # Load and scale number sprites with proper aspect ratio
     number_sprites = []
     for i in range(10):
         num_img = pygame.image.load(f'assets/sprites/{i}.png').convert_alpha()
-        # Scale numbers to reasonable size (assuming they're also quite large)
-        scaled_num = pygame.transform.scale(num_img, (24, 36))  # Much smaller numbers
+        scaled_num = pygame.transform.scale(num_img, (24, 36))
         number_sprites.append(scaled_num)
     GAME_SPRITES['numbers'] = tuple(number_sprites)
 
-    # Load and scale message sprite (920x920 -> much smaller)
+    # Load and scale message sprite - maintaining square aspect ratio
     message_img = pygame.image.load('assets/sprites/message.png').convert_alpha()
-    GAME_SPRITES['message'] = pygame.transform.scale(message_img, (150, 150))  # Much smaller
+    GAME_SPRITES['message'] = pygame.transform.scale(message_img, (150, 150))
     
-    # Load and scale base sprite (860x319 -> fit screen properly with good height)
+    # Load and scale base sprite - maintaining original aspect ratio (860x304)
     base_img = pygame.image.load('assets/sprites/base.png').convert_alpha()
-    base_height = int(SCREENHEIGHT - GROUNDY)  # Calculate proper base height
-    GAME_SPRITES['base'] = pygame.transform.scale(base_img, (SCREENWIDTH, base_height))
+    # Original aspect ratio: 860/304 ≈ 2.83
+    base_height = int(SCREENHEIGHT - GROUNDY)
+    base_width = int(base_height * 2.83)  # Maintain aspect ratio
+    # If calculated width is less than screen width, use screen width
+    if base_width < SCREENWIDTH:
+        base_width = SCREENWIDTH
+    GAME_SPRITES['base'] = pygame.transform.scale(base_img, (base_width, base_height))
     
-    # Load and scale pipe sprites (228x821 -> reasonable game size with better spacing)
+    # Load and scale pipe sprites - maintaining original aspect ratio (228x821)
     pipe_img = pygame.image.load(PIPE).convert_alpha()
-    pipe_scaled = pygame.transform.scale(pipe_img, (52, 320))  # Standard Flappy Bird pipe size
+    # Original aspect ratio: 228/821 ≈ 0.278
+    pipe_height = 320  # Good height for gameplay
+    pipe_width = int(pipe_height * 0.278)  # Maintain aspect ratio
+    pipe_scaled = pygame.transform.scale(pipe_img, (pipe_width, pipe_height))
     GAME_SPRITES['pipe'] = (pygame.transform.rotate(pipe_scaled, 180), pipe_scaled)
 
     # Game sounds
@@ -271,26 +335,28 @@ if __name__ == "__main__":
     GAME_SOUNDS['point'] = pygame.mixer.Sound('assets/audio/point.mp3')
     GAME_SOUNDS['swoosh'] = pygame.mixer.Sound('assets/audio/swoosh.mp3')
     GAME_SOUNDS['wing'] = pygame.mixer.Sound('assets/audio/wing.mp3')
+    GAME_SOUNDS['helicopter'] = pygame.mixer.Sound('assets/audio/helicopter-helicopter.wav')  # New intro sound
 
-    # Load and scale background properly (1920x696 -> fit screen)
-    background_img = pygame.image.load(BACKGROUND).convert()
-    # Scale background to fit screen while maintaining aspect ratio
-    GAME_SPRITES['background'] = pygame.transform.scale(background_img, (SCREENWIDTH, SCREENHEIGHT))
+    # Load and scale both backgrounds properly - maintaining aspect ratio
+    background1_img = pygame.image.load(BACKGROUND).convert()
+    GAME_SPRITES['background1'] = pygame.transform.scale(background1_img, (SCREENWIDTH, SCREENHEIGHT))
     
-    # Load and scale player sprite (316x372 -> proper size for transparent background)
+    background2_img = pygame.image.load(BACKGROUND2).convert()
+    GAME_SPRITES['background2'] = pygame.transform.scale(background2_img, (SCREENWIDTH, SCREENHEIGHT))
+    
+    # Load and scale player sprite - maintaining original aspect ratio (920x920)
     player_img = pygame.image.load(PLAYER).convert_alpha()
-    print(f"Original player size: {player_img.get_size()}")  # Debug info
-    GAME_SPRITES['player_original'] = pygame.transform.scale(player_img, (40, 30))  # Smaller for better collision detection
-    GAME_SPRITES['player'] = GAME_SPRITES['player_original']  # Start with no rotation
-    print(f"Scaled player size: {GAME_SPRITES['player'].get_size()}")  # Debug info
+    print(f"Original player size: {player_img.get_size()}")
+    # Original is square (920x920), so keep it square but smaller
+    player_size = 35  # Good size for gameplay
+    GAME_SPRITES['player_original'] = pygame.transform.scale(player_img, (player_size, player_size))
+    GAME_SPRITES['player'] = GAME_SPRITES['player_original']
+    print(f"Scaled player size: {GAME_SPRITES['player'].get_size()}")
     
-    # Print all sprite info for debugging
     print(f"Screen size: {SCREENWIDTH}x{SCREENHEIGHT}")
     print(f"Ground Y position: {GROUNDY}")
-    
-    # Add debug rectangles in the game to see where things are
-    print("Game initialized - check the red rectangles to see sprite positions!")
+    print("Game initialized with fixed aspect ratios!")
 
     while True:
-        welcomeScreen() # Shows welcome screen to the user until he presses a button
-        mainGame() # This is the main game function
+        welcomeScreen() # Shows welcome screen with high score and title
+        mainGame() # Main game function
